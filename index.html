@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<title>One Troop One Family - Check-In</title>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+}
+
+.container {
+  max-width: 550px;
+  margin: auto;
+}
+
+.header,
+.card {
+  background: white;
+  border-radius: 15px;
+  padding: 22px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.08);
+}
+
+.header {
+  text-align: center;
+}
+
+.header h1 {
+  font-size: 24px;
+  margin: 0;
+}
+
+.header h2 {
+  font-size: 17px;
+  font-weight: normal;
+}
+
+label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+input {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+
+button {
+  width: 100%;
+  padding: 15px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: bold;
+  margin-top: 8px;
+}
+
+.start {
+  background: #1a73e8;
+  color: white;
+}
+
+.stop {
+  background: #d93025;
+  color: white;
+  display: none;
+}
+
+.manual {
+  background: #333;
+  color: white;
+}
+
+#reader {
+  width: 100%;
+  margin-top: 15px;
+}
+
+#loading {
+  display: none;
+  text-align: center;
+  padding: 15px;
+}
+
+#result {
+  display: none;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.success {
+  background: #d9ead3;
+  color: #137333;
+}
+
+.warning {
+  background: #fff2cc;
+  color: #7f6000;
+}
+
+.error {
+  background: #f4cccc;
+  color: #a50e0e;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.name {
+  font-size: 22px;
+  font-weight: bold;
+  margin: 10px 0;
+}
+
+.details {
+  line-height: 1.7;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+
+<div class="header">
+
+<h1>
+⚜️ ONE TROOP ONE FAMILY
+</h1>
+
+<h2>
+EVENT CHECK-IN
+</h2>
+
+</div>
+
+
+<div class="card">
+
+<label>
+Registration Officer Name
+</label>
+
+<input
+  id="officer"
+  type="text"
+  placeholder="Enter officer's name"
+>
+
+</div>
+
+
+<div class="card">
+
+<h3>
+📷 QR CODE SCANNER
+</h3>
+
+<p>
+Scan the attendee's individual QR code.
+</p>
+
+<button
+  id="startButton"
+  class="start"
+  onclick="startScanner()"
+>
+📷 START CAMERA SCANNER
+</button>
+
+<button
+  id="stopButton"
+  class="stop"
+  onclick="stopScanner()"
+>
+✖ STOP SCANNER
+</button>
+
+<div id="reader"></div>
+
+</div>
+
+
+<div class="card">
+
+<h3>
+⌨️ Manual Entry
+</h3>
+
+<input
+  id="manualCode"
+  type="text"
+  placeholder="OTOF-A7K92P"
+>
+
+<button
+  class="manual"
+  onclick="manualCheck()"
+>
+CHECK ENTRY CODE
+</button>
+
+</div>
+
+
+<div id="loading">
+⏳ Checking entry...
+</div>
+
+
+<div id="result"></div>
+
+
+</div>
+
+
+<script>
+
+
+/*
+IMPORTANT:
+Replace this URL with your actual
+Google Apps Script Web App URL.
+*/
+
+const API_URL =
+"https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec";
+
+
+let scanner = null;
+
+let running = false;
+
+
+/*
+Get officer name
+*/
+function getOfficer() {
+
+  return document
+    .getElementById("officer")
+    .value
+    .trim();
+
+}
+
+
+/*
+Start camera
+*/
+function startScanner() {
+
+  const officer = getOfficer();
+
+  if (!officer) {
+
+    showResult(
+      "warning",
+      "PLEASE ENTER OFFICER NAME",
+      "Enter the registration officer's name first."
+    );
+
+    return;
+  }
+
+
+  scanner = new Html5Qrcode("reader");
+
+
+  scanner.start(
+
+    {
+      facingMode: "environment"
+    },
+
+    {
+      fps: 10,
+      qrbox: {
+        width: 250,
+        height: 250
+      }
+    },
+
+    function(decodedText) {
+
+      stopScanner();
+
+      checkCode(decodedText);
+
+    },
+
+    function(errorMessage) {
+
+      // Ignore scanning errors while camera is searching.
+
+    }
+
+  )
+
+  .then(function() {
+
+    running = true;
+
+    document
+      .getElementById("startButton")
+      .style.display = "none";
+
+    document
+      .getElementById("stopButton")
+      .style.display = "block";
+
+  })
+
+  .catch(function(error) {
+
+    showResult(
+      "error",
+      "CAMERA ERROR",
+      "Camera could not be started. Please allow camera access for this website."
+    );
+
+    console.error(error);
+
+  });
+
+}
+
+
+/*
+Stop camera
+*/
+function stopScanner() {
+
+  if (!scanner || !running) {
+    return;
+  }
+
+
+  scanner.stop()
+
+    .then(function() {
+
+      scanner.clear();
+
+      running = false;
+
+      document
+        .getElementById("startButton")
+        .style.display = "block";
+
+      document
+        .getElementById("stopButton")
+        .style.display = "none";
+
+    })
+
+    .catch(function(error) {
+
+      console.error(error);
+
+    });
+
+}
+
+
+/*
+Manual code
+*/
+function manualCheck() {
+
+  const code =
+    document
+      .getElementById("manualCode")
+      .value
+      .trim();
+
+
+  if (!code) {
+
+    showResult(
+      "warning",
+      "ENTER CODE",
+      "Please enter a ticket code."
+    );
+
+    return;
+  }
+
+
+  checkCode(code);
+
+}
+
+
+/*
+Send ticket to Google Apps Script
+*/
+function checkCode(code) {
+
+  const officer = getOfficer();
+
+
+  if (!officer) {
+
+    showResult(
+      "warning",
+      "OFFICER NAME REQUIRED",
+      "Enter the registration officer's name."
+    );
+
+    return;
+  }
+
+
+  document
+    .getElementById("loading")
+    .style.display = "block";
+
+
+  const callbackName =
+    "ticketCallback_" +
+    Date.now();
+
+
+  window[callbackName] = function(response) {
+
+    document
+      .getElementById("loading")
+      .style.display = "none";
+
+
+    displayResult(response);
+
+
+    delete window[callbackName];
+
+    const script =
+      document.getElementById(callbackName);
+
+    if (script) {
+      script.remove();
+    }
+
+  };
+
+
+  const url =
+    API_URL +
+    "?action=check" +
+    "&code=" +
+    encodeURIComponent(code) +
+    "&officer=" +
+    encodeURIComponent(officer) +
+    "&callback=" +
+    callbackName;
+
+
+  const script =
+    document.createElement("script");
+
+
+  script.id = callbackName;
+
+  script.src = url;
+
+  script.onerror = function() {
+
+    document
+      .getElementById("loading")
+      .style.display = "none";
+
+
+    showResult(
+      "error",
+      "SYSTEM ERROR",
+      "The check-in system could not be reached."
+    );
+
+  };
+
+
+  document
+    .body
+    .appendChild(script);
+
+}
+
+
+/*
+Display result
+*/
+function displayResult(response) {
+
+
+  if (!response) {
+
+    showResult(
+      "error",
+      "SYSTEM ERROR",
+      "No response received."
+    );
+
+    return;
+
+  }
+
+
+  if (response.success) {
+
+    showResult(
+      "success",
+      "✅ ENTRY APPROVED",
+      `
+      <div class="name">
+        ${escapeHtml(response.name)}
+      </div>
+
+      <div class="details">
+
+        <strong>Ticket:</strong>
+        ${escapeHtml(response.code)}
+        <br>
+
+        <strong>Type:</strong>
+        ${escapeHtml(response.ticketType)}
+        <br>
+
+        <strong>Time:</strong>
+        ${escapeHtml(response.checkInTime)}
+        <br>
+
+        <strong>Officer:</strong>
+        ${escapeHtml(response.checkedBy)}
+
+      </div>
+      `
+    );
+
+    return;
+
+  }
+
+
+  if (
+    response.type ===
+    "ALREADY_CHECKED_IN"
+  ) {
+
+    showResult(
+      "warning",
+      "⚠️ ALREADY CHECKED IN",
+      `
+      <div class="name">
+        ${escapeHtml(response.name)}
+      </div>
+
+      <div class="details">
+
+        <strong>Ticket:</strong>
+        ${escapeHtml(response.code)}
+        <br>
+
+        <strong>Previous Check-in:</strong>
+        ${escapeHtml(response.checkInTime)}
+        <br>
+
+        <strong>Checked By:</strong>
+        ${escapeHtml(response.checkedBy)}
+
+      </div>
+      `
+    );
+
+    return;
+
+  }
+
+
+  showResult(
+    "error",
+    "❌ INVALID ENTRY",
+    response.message || "Invalid ticket."
+  );
+
+}
+
+
+/*
+Show result
+*/
+function showResult(
+  type,
+  title,
+  message
+) {
+
+  const result =
+    document.getElementById("result");
+
+
+  result.className = type;
+
+  result.innerHTML =
+
+    `<div class="title">
+      ${title}
+    </div>
+
+    <div>
+      ${message}
+    </div>`;
+
+
+  result.style.display = "block";
+
+}
+
+
+/*
+Security helper
+*/
+function escapeHtml(value) {
+
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+}
+
+</script>
+
+</body>
+
+</html>
